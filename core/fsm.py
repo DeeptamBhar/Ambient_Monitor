@@ -34,12 +34,12 @@ class FallDetectorFSM:
         Returns the current state.
         """
         
-        # 1. STANDING: Safe state. Waiting for a sign of imbalance.
+        # STANDING: Safe state. Waiting for a sign of imbalance.
         if self.state == FallState.STANDING:
             if theta < self.theta_imbalance:
                 self.state = FallState.LOSING_BALANCE
 
-        # 2. LOSING BALANCE: Person is tilted. Are they falling or just bending over?
+        # LOSING BALANCE: Person is tilted. Are they falling or just bending over?
         elif self.state == FallState.LOSING_BALANCE:
             if vy > self.vy_fall_thresh:
                 # High velocity + tilt = Falling
@@ -48,7 +48,7 @@ class FallDetectorFSM:
                 # They stood back up. False alarm.
                 self.state = FallState.STANDING
 
-        # 3. RAPID DESCENT: They are in free-fall. Waiting for impact.
+        # RAPID DESCENT: They are in free-fall. Waiting for impact.
         elif self.state == FallState.RAPID_DESCENT:
             # Impact means velocity drops near zero, and they are horizontal
             if vy < self.vy_impact and theta < self.theta_horizontal:
@@ -58,7 +58,7 @@ class FallDetectorFSM:
                 # Somehow recovered mid-air or false positive
                 self.state = FallState.STANDING
 
-        # 4. GROUND CONTACT: They hit the floor. Are they doing a sit-up, or are they hurt?
+        # GROUND CONTACT: They hit the floor. Are they doing a sit-up, or are they hurt?
         elif self.state == FallState.GROUND_CONTACT:
             if theta >= self.theta_imbalance:
                 # They stood up. False alarm killed.
@@ -67,7 +67,7 @@ class FallDetectorFSM:
                 # They've been on the ground too long. Trigger the alarm.
                 self.state = FallState.NO_RECOVERY
 
-        # 5. NO RECOVERY: The alarm state. 
+        # NO RECOVERY: The alarm state. 
         elif self.state == FallState.NO_RECOVERY:
             # If they eventually stand up, reset the system.
             if theta >= self.theta_imbalance:
