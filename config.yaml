@@ -1,0 +1,21 @@
+# AMBIENT MONITOR SYSTEM CONFIG
+
+model:
+  weights: "yolov8n-pose.pt"
+  min_confidence: 0.5          # Ignore keypoints with confidence lower than this
+
+pipeline:
+  target_fps: 30.0
+  buffer_max_frames: 30        # 1 second of temporal memory
+
+fsm_thresholds:
+  # Kinematic Triggers
+  theta_imbalance: 60.0        # Degrees (Below this = losing balance)
+  vy_fall_thresh: 150.0        # Pixels/sec (Above this = free fall)
+  
+  # Impact Detection
+  theta_horizontal: 30.0       # Degrees (Below this = lying flat on ground)
+  vy_impact: 50.0              # Pixels/sec (Velocity must drop below this to register impact)
+  
+  # Alert Timing
+  max_recovery_time: 5.0       # Seconds before a "NO_RECOVERY" critical alert is fired

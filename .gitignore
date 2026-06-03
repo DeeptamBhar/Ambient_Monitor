@@ -1,0 +1,12 @@
+# Python cache
+__pycache__/
+
+# Virtual environments
+venv/
+.venv/
+
+# Heavy YOLO weights
+*.pt
+
+# OS junk
+.DS_Store
