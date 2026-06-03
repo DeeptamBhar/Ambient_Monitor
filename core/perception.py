@@ -71,8 +71,8 @@ while cap.isOpened():
 
         print(f"Extracted Frame Data: {frame_data}")
 
-        # --- DEBUG VISUALIZER ---
-        # Draw the neck point just to prove the calculation works
+        # DEBUG VISUALIZER
+        # Draw the neck point to prove the calculation works
         if neck:
             cv2.circle(frame, neck, 5, (0, 0, 255), -1) 
             cv2.putText(frame, 'Neck', (neck[0] + 10, neck[1]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
