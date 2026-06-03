@@ -11,7 +11,7 @@ def main():
     parser.add_argument('--source', type=str, default='0', help="Path to video file or '0' for webcam")
     args = parser.parse_args()
 
-    # --- LOAD CONFIGURATION ---
+    # LOAD CONFIGURATION
     with open("config.yaml", "r") as f:
         config = yaml.safe_load(f)
 
@@ -45,7 +45,7 @@ def main():
         results = model(frame, verbose=False)
         frame_data = {}
 
-        # --- PERCEPTION EXTRACTION ---
+        # PERCEPTION EXTRACTION 
         if results[0].keypoints is not None and len(results[0].keypoints.xy) > 0:
             keypoints = results[0].keypoints.xy[0].cpu().numpy()
             confidences = results[0].keypoints.conf[0].cpu().numpy()
@@ -78,7 +78,7 @@ def main():
                 "ankles": (l_ankle, r_ankle)
             }
 
-        # --- TEMPORAL MEMORY ---
+        # TEMPORAL MEMORY 
         kinematics.update(frame_data)
 
         # Start with safe default states if buffer isn't ready
@@ -88,10 +88,10 @@ def main():
             vy = kinematics.calculate_vertical_velocity()
             theta = kinematics.calculate_body_angle()
             
-            # --- THE LOGIC ---
+            # THE LOGIC
             current_state = fsm.update(vy, theta)
             
-            # --- THE DEBUG VISUALIZER ---
+            # THE DEBUG VISUALIZER 
             frame = hud.draw_yolo_skeleton(results)
             buffer_size = len(kinematics.get_history())
         
