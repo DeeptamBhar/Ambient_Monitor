@@ -61,6 +61,7 @@ def main():
             # Extract specific keypoints
             head = get_pt(0) 
             l_shoulder, r_shoulder = get_pt(5), get_pt(6)
+            l_wrist, r_wrist = get_pt(9), get_pt(10) # NEW: Grab the wrists
             l_hip, r_hip = get_pt(11), get_pt(12)
             l_knee, r_knee = get_pt(13), get_pt(14)
             l_ankle, r_ankle = get_pt(15), get_pt(16)
@@ -71,10 +72,12 @@ def main():
                 neck = (int((l_shoulder[0] + r_shoulder[0]) / 2), 
                         int((l_shoulder[1] + r_shoulder[1]) / 2))
 
+            # Pack the dictionary
             frame_data = {
                 "head": head,
                 "neck": neck,
                 "shoulders": (l_shoulder, r_shoulder),
+                "wrists": (l_wrist, r_wrist), # NEW: Pass wrists to the engine
                 "hips": (l_hip, r_hip),
                 "knees": (l_knee, r_knee),
                 "ankles": (l_ankle, r_ankle)
@@ -83,8 +86,11 @@ def main():
         # TEMPORAL MEMORY 
         kinematics.update(frame_data)
 
+        # Calculate velocity first so we can feed it to the gait analyzer
+        v_total = kinematics.calculate_velocity_vector()[2] if kinematics.is_ready() else 0.0
+
         # Gait engine builds its own peak-detection buffer independent of kinematics
-        gait_metrics = gait.update(frame_data)
+        gait_metrics = gait.update(frame_data, v_total)
 
         # Start with safe default states if buffer isn't ready
         current_state = "STANDING"

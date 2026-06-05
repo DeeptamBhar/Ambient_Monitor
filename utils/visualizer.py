@@ -21,11 +21,24 @@ class DebugVisualizer:
 
     def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None):
         """
-        Overlays the kinematics data, FSM state, Fall Type, and Gait Metrics directly onto the frame.
+        Overlays the kinematics data, FSM state, Fall Type, and live Gait Diagnostics.
+        Dynamically resizes the background box if clinical alerts are triggered.
         """
         overlay = frame.copy()
-        # Increased box height to 220 to fit Gait data
-        cv2.rectangle(overlay, (5, 5), (350, 220), self.colors["black"], -1)
+        
+        # Determine how many alerts we have to calculate box size
+        diagnostics = []
+        box_height = 230
+        box_width = 350
+        
+        if gait_metrics and "diagnostics" in gait_metrics:
+            diagnostics = gait_metrics["diagnostics"]
+            if len(diagnostics) > 0:
+                box_height += len(diagnostics) * 30
+                box_width = 450 # Make it wider to fit long medical strings
+
+        # Draw the dynamic background box
+        cv2.rectangle(overlay, (5, 5), (box_width, box_height), self.colors["black"], -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
         # Print Buffer Status
@@ -44,19 +57,26 @@ class DebugVisualizer:
         cv2.putText(frame, f"STATE: {current_state}", (15, 120), 
                     self.font, 0.7, state_color, 2)
 
-        # Print Live Classification
+        # Print Live Fall Classification
         class_color = self.colors["yellow"] if classification != "N/A" else self.colors["white"]
         cv2.putText(frame, f"TYPE:  {classification}", (15, 150), 
                     self.font, 0.7, class_color, 2)
 
-        # Print Gait Metrics
+        # Print Gait Metrics & Diagnostics
         if gait_metrics:
             stride = gait_metrics.get("stride_length_px", 0.0)
             cadence = gait_metrics.get("cadence_spm", 0.0)
-            cv2.putText(frame, f"Stride:  {stride} px", (15, 180), 
+            cv2.putText(frame, f"Stride:  {stride} px", (15, 190), 
                         self.font, 0.6, self.colors["white"], 2)
-            cv2.putText(frame, f"Cadence: {cadence} spm", (15, 210), 
+            cv2.putText(frame, f"Cadence: {cadence} spm", (15, 220), 
                         self.font, 0.6, self.colors["white"], 2)
+            
+            # Render Clinical Alerts dynamically
+            y_offset = 250
+            for alert in diagnostics:
+                cv2.putText(frame, f"! {alert}", (15, y_offset), 
+                            self.font, 0.6, self.colors["red"], 2)
+                y_offset += 30
 
         return frame
 
