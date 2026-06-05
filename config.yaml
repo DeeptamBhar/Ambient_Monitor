@@ -3,6 +3,7 @@
 model:
   weights: "yolov8n-pose.pt"
   min_confidence: 0.5          # Ignore keypoints with confidence lower than this
+  confidence_threshold: 0.6
 
 pipeline:
   target_fps: 30.0
@@ -19,3 +20,13 @@ fsm_thresholds:
   
   # Alert Timing
   max_recovery_time: 5.0       # Seconds before a "NO_RECOVERY" critical alert is fired
+
+kinematics:
+  max_frames: 30       # Temporal memory window
+  fps: 30.0
+
+fsm:
+  vy_fall_thresh: 150.0 # Velocity required to trigger free-fall (px/s)
+  theta_imbalance: 60.0 # Angle deviation to trigger warning state (deg)
+  max_recovery_time: 5.0 # Seconds on the floor before critical alert
+

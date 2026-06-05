@@ -10,3 +10,6 @@ venv/
 
 # OS junk
 .DS_Store
+
+#vids
+*.mp4
