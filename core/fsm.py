@@ -11,65 +11,58 @@ class FallState(Enum):
 class FallDetectorFSM:
     def __init__(self, 
                  theta_imbalance=60.0, 
-                 vy_fall_thresh=150.0, 
+                 v_total_fall_thresh=150.0,   # Swapped vy for v_total
+                 critical_impact_thresh=350.0, # The "Bike Crash" threshold
                  theta_horizontal=30.0, 
                  vy_impact=50.0, 
                  max_recovery_time=5.0):
         
-        # Initial state
         self.state = FallState.STANDING
         
-        # The thresholds (you will tune these later based on your camera angle)
-        self.theta_imbalance = theta_imbalance      # Degrees
-        self.vy_fall_thresh = vy_fall_thresh        # Pixels per second
-        self.theta_horizontal = theta_horizontal    # Degrees
-        self.vy_impact = vy_impact                  # Pixels per second
-        self.max_recovery_time = max_recovery_time  # Seconds
+        self.theta_imbalance = theta_imbalance
+        self.v_total_fall_thresh = v_total_fall_thresh
+        self.critical_impact_thresh = critical_impact_thresh
+        self.theta_horizontal = theta_horizontal
+        self.vy_impact = vy_impact
+        self.max_recovery_time = max_recovery_time
         
         self.ground_contact_time = 0.0
+        self.kinetic_override = False # Tracks if the crash was severe
 
-    def update(self, vy, theta):
-        """
-        Takes the current vertical velocity and body angle and shifts the FSM state.
-        Returns the current state.
-        """
-        
-        # STANDING: Safe state. Waiting for a sign of imbalance.
+    def update(self, v_total, vy, theta):
         if self.state == FallState.STANDING:
             if theta < self.theta_imbalance:
                 self.state = FallState.LOSING_BALANCE
+                self.kinetic_override = False # Reset flag
 
-        # LOSING BALANCE: Person is tilted. Are they falling or just bending over?
         elif self.state == FallState.LOSING_BALANCE:
-            if vy > self.vy_fall_thresh:
-                # High velocity + tilt = Falling
+            if v_total > self.critical_impact_thresh:
+                # Extreme horizontal or vertical impact
+                self.kinetic_override = True
+                self.state = FallState.RAPID_DESCENT
+            elif v_total > self.v_total_fall_thresh:
+                # Standard fall
                 self.state = FallState.RAPID_DESCENT
             elif theta >= self.theta_imbalance:
-                # They stood back up. False alarm.
                 self.state = FallState.STANDING
 
-        # RAPID DESCENT: They are in free-fall. Waiting for impact.
         elif self.state == FallState.RAPID_DESCENT:
-            # Impact means velocity drops near zero, and they are horizontal
             if vy < self.vy_impact and theta < self.theta_horizontal:
                 self.state = FallState.GROUND_CONTACT
-                self.ground_contact_time = time.time() # Start the timer
+                self.ground_contact_time = time.time()
             elif theta >= self.theta_imbalance:
-                # Somehow recovered mid-air or false positive
                 self.state = FallState.STANDING
 
-        # GROUND CONTACT: They hit the floor. Are they doing a sit-up, or are they hurt?
         elif self.state == FallState.GROUND_CONTACT:
-            if theta >= self.theta_imbalance:
-                # They stood up. False alarm killed.
+            if self.kinetic_override:
+                # BYPASS THE TIMER: The impact was too violent to wait 5 seconds.
+                self.state = FallState.NO_RECOVERY
+            elif theta >= self.theta_imbalance:
                 self.state = FallState.STANDING
             elif (time.time() - self.ground_contact_time) > self.max_recovery_time:
-                # They've been on the ground too long. Trigger the alarm.
                 self.state = FallState.NO_RECOVERY
 
-        # NO RECOVERY: The alarm state. 
         elif self.state == FallState.NO_RECOVERY:
-            # If they eventually stand up, reset the system.
             if theta >= self.theta_imbalance:
                 self.state = FallState.STANDING
 

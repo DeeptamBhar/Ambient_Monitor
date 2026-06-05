@@ -44,31 +44,30 @@ class KinematicsEngine:
             return r_hip
         return None
 
-    def calculate_vertical_velocity(self):
+    def calculate_velocity_vector(self):
         """
-        Calculates vy in pixels per second.
-        Positive velocity means moving DOWN (falling).
+        Calculates vx, vy, and total velocity magnitude (v_total) in pixels per second.
         """
         if not self.is_ready():
-            return 0.0
+            return 0.0, 0.0, 0.0
 
-        old_frame = self.buffer[0]
-        new_frame = self.buffer[-1]
-
-        old_hip = self._get_mid_hip(old_frame)
-        new_hip = self._get_mid_hip(new_frame)
+        old_hip = self._get_mid_hip(self.buffer[0])
+        new_hip = self._get_mid_hip(self.buffer[-1])
 
         if not old_hip or not new_hip:
-            return 0.0
+            return 0.0, 0.0, 0.0
 
+        # Calculate distance traveled
+        dx = new_hip[0] - old_hip[0]
         dy = new_hip[1] - old_hip[1]
-        
-        # Time delta: (number of frames between old and new) / FPS
         dt = (len(self.buffer) - 1) / self.fps 
 
-        # Velocity = pixels / second
+        # Calculate vectors
+        vx = abs(dx / dt) if dt > 0 else 0.0
         vy = dy / dt if dt > 0 else 0.0
-        return vy
+        v_total = math.sqrt(vx**2 + vy**2) # Full magnitude of the crash
+        
+        return vx, vy, v_total
 
     def calculate_body_angle(self):
         """

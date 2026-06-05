@@ -85,11 +85,12 @@ def main():
         current_state = "STANDING"
         
         if kinematics.is_ready():
-            vy = kinematics.calculate_vertical_velocity()
+            
+            vx, vy, v_total = kinematics.calculate_velocity_vector()
             theta = kinematics.calculate_body_angle()
             
-            # THE LOGIC
-            current_state = fsm.update(vy, theta)
+            # Feed the FSM the total magnitude AND the vertical drop
+            current_state = fsm.update(v_total, vy, theta)
             
             # THE DEBUG VISUALIZER 
             frame = hud.draw_yolo_skeleton(results)
