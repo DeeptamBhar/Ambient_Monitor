@@ -19,14 +19,13 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, vy, theta, current_state, buffer_size):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None):
         """
-        Overlays the kinematics data and FSM state directly onto the frame.
+        Overlays the kinematics data, FSM state, Fall Type, and Gait Metrics directly onto the frame.
         """
-        # Draw a semi-transparent background box for readability
         overlay = frame.copy()
-        cv2.rectangle(overlay, (5, 5), (350, 140), self.colors["black"], -1)
-        # Blend the overlay with the original frame (opacity = 0.6)
+        # Increased box height to 220 to fit Gait data
+        cv2.rectangle(overlay, (5, 5), (350, 220), self.colors["black"], -1)
         cv2.addWeighted(overlay, 0.6, frame, 0.4, 0, frame)
 
         # Print Buffer Status
@@ -34,16 +33,30 @@ class DebugVisualizer:
         cv2.putText(frame, f"Buffer: {buffer_size}/30", (15, 30), 
                     self.font, 0.6, buffer_color, 2)
 
-        # Print Kinematics (Math)
-        cv2.putText(frame, f"v_y:   {vy:.2f} px/s", (15, 60), 
+        # Print Kinematics
+        cv2.putText(frame, f"v_total: {v_total:.2f} px/s", (15, 60), 
                     self.font, 0.6, self.colors["white"], 2)
-        cv2.putText(frame, f"Theta: {theta:.1f} deg", (15, 90), 
+        cv2.putText(frame, f"Theta:   {theta:.1f} deg", (15, 90), 
                     self.font, 0.6, self.colors["white"], 2)
 
         # Print FSM State
-        state_color = self.colors["red"] if current_state in ["RAPID_DESCENT", "NO_RECOVERY"] else self.colors["green"]
+        state_color = self.colors["red"] if current_state in ["RAPID_DESCENT", "NO_RECOVERY", "GROUND_CONTACT"] else self.colors["green"]
         cv2.putText(frame, f"STATE: {current_state}", (15, 120), 
                     self.font, 0.7, state_color, 2)
+
+        # Print Live Classification
+        class_color = self.colors["yellow"] if classification != "N/A" else self.colors["white"]
+        cv2.putText(frame, f"TYPE:  {classification}", (15, 150), 
+                    self.font, 0.7, class_color, 2)
+
+        # Print Gait Metrics
+        if gait_metrics:
+            stride = gait_metrics.get("stride_length_px", 0.0)
+            cadence = gait_metrics.get("cadence_spm", 0.0)
+            cv2.putText(frame, f"Stride:  {stride} px", (15, 180), 
+                        self.font, 0.6, self.colors["white"], 2)
+            cv2.putText(frame, f"Cadence: {cadence} spm", (15, 210), 
+                        self.font, 0.6, self.colors["white"], 2)
 
         return frame
 

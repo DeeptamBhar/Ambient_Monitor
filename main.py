@@ -2,7 +2,7 @@ import cv2
 import yaml
 import argparse
 from ultralytics import YOLO
-from core import FallDetectorFSM, KinematicsEngine
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer
 from utils import DebugVisualizer
 
 def main():
@@ -34,6 +34,9 @@ def main():
 
     hud = DebugVisualizer()
 
+    # Initialize the Gait Analyzer
+    gait = GaitAnalyzer(fps=config['kinematics']['fps'])
+
     print("Pipeline initialized. Press 'q' to quit.")
 
     while cap.isOpened():
@@ -41,7 +44,6 @@ def main():
         if not success:
             print("Video stream ended or failed to read frame.")
             break
-
         results = model(frame, verbose=False)
         frame_data = {}
 
@@ -81,6 +83,9 @@ def main():
         # TEMPORAL MEMORY 
         kinematics.update(frame_data)
 
+        # Gait engine builds its own peak-detection buffer independent of kinematics
+        gait_metrics = gait.update(frame_data)
+
         # Start with safe default states if buffer isn't ready
         current_state = "STANDING"
         
@@ -95,10 +100,19 @@ def main():
             # THE DEBUG VISUALIZER 
             frame = hud.draw_yolo_skeleton(results)
             buffer_size = len(kinematics.get_history())
+            
+            # Live Classification Logic for the HUD
+            live_class = "N/A"
+            if current_state in ["GROUND_CONTACT", "NO_RECOVERY"]:
+                # Grab the payload to read the classification string
+                temp_payload = fsm.generate_alert_payload(frame_data)
+                if temp_payload:
+                    live_class = temp_payload["classification"]
+            
+            # Pass v_total and live_class into the HUD
+            frame = hud.draw_telemetry(frame, v_total, theta, current_state, buffer_size, live_class, gait_metrics)
         
-            frame = hud.draw_telemetry(frame, vy, theta, current_state, buffer_size)
-        
-            # Trigger alert UI if needed
+            # Trigger full screen alert UI if timer runs out
             if current_state == "NO_RECOVERY":
                 alert = fsm.generate_alert_payload(frame_data)
                 frame = hud.draw_critical_alert(frame, alert)

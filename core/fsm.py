@@ -70,43 +70,51 @@ class FallDetectorFSM:
     
     def generate_alert_payload(self, frame_data, confidence=0.94):
         """
-        Generates the severity score and JSON output required by the spec.
+        Generates the severity score and JSON output matching the spec doc.
+        Uses geometric heuristics to classify Forward, Backward, and Side falls.
         """
-        if self.state != FallState.NO_RECOVERY:
-            return None
+        # if self.state != FallState.NO_RECOVERY:
+        #     return None
 
         time_on_ground = round(time.time() - self.ground_contact_time, 1)
         
-        # Basic heuristic for classification: 
-        # Compare nose (head) position to shoulders to guess the fall direction.
-        # In a real 3D system, you'd use depth, but for 2D we estimate based on visibility.
-        head = frame_data.get("head")
-        shoulders = frame_data.get("shoulders", (None, None))
+        l_shoulder, r_shoulder = frame_data.get("shoulders", (None, None))
+        head = frame_data.get("head") # Nose keypoint
         
-        classification = "unknown"
+        classification = "Unknown"
         head_impact = "unknown"
-        
-        if head and shoulders[0] and shoulders[1]:
-            # If the head is visible and below the shoulders, they likely pitched forward or sideways
-            if head[1] > shoulders[0][1] and head[1] > shoulders[1][1]:
-                classification = "Forward/Side Fall"
-                head_impact = "possible"
-            else:
-                classification = "Backward Fall"
-                head_impact = "unlikely"
-
-        # Calculate Severity based on time on ground and head impact
         severity = "high"
-        if time_on_ground > 120 or head_impact == "possible":
+
+        if l_shoulder and r_shoulder:
+            # Calculate the horizontal and vertical spread of the shoulders
+            shoulder_dx = abs(l_shoulder[0] - r_shoulder[0])
+            shoulder_dy = abs(l_shoulder[1] - r_shoulder[1])
+
+            # If shoulders are stacked vertically or pinched horizontally -> Side Fall
+            if shoulder_dx < 40 or shoulder_dy > shoulder_dx:
+                classification = "Side Fall"
+                head_impact = "unlikely"
+            else:
+                # If nose is pitched way below the shoulders -> Forward Fall
+                if head and head[1] > min(l_shoulder[1], r_shoulder[1]) + 20:
+                    classification = "Forward Fall"
+                    head_impact = "possible"
+                    severity = "critical" # Flag critical for potential facial trauma
+                else:
+                    classification = "Backward Fall"
+                    head_impact = "possible" # Flag possible for spine/back of head impact
+
+        # Time override: If they are on the floor for 2 minutes, it's critical regardless
+        if time_on_ground > 120:
             severity = "critical"
 
-        # The exact JSON structure requested in the design document
+        # The exact JSON structure 
         payload = {
             "event": "fall",
             "classification": classification,
             "severity": severity,
             "confidence": confidence,
-            "head impact": head_impact,
+            "head_impact": head_impact,
             "time_on_ground": f"{time_on_ground} sec"
         }
         
