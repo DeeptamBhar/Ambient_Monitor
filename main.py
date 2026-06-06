@@ -2,9 +2,8 @@ import cv2
 import yaml
 import argparse
 from ultralytics import YOLO
-from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker
 from utils import DebugVisualizer
-from core import ImmobilityTracker
 
 def main():
     # Set up argparse 
