@@ -4,6 +4,7 @@ import argparse
 from ultralytics import YOLO
 from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer
 from utils import DebugVisualizer
+from core import ImmobilityTracker
 
 def main():
     # Set up argparse 
@@ -36,6 +37,9 @@ def main():
 
     # Initialize the Gait Analyzer
     gait = GaitAnalyzer(fps=config['kinematics']['fps'])
+
+    # Initialize Immobility Tracker
+    immobility = ImmobilityTracker(**config['immobility'])
 
     print("Pipeline initialized. Press 'q' to quit.")
 
@@ -106,6 +110,9 @@ def main():
             # THE DEBUG VISUALIZER 
             frame = hud.draw_yolo_skeleton(results)
             buffer_size = len(kinematics.get_history())
+
+            # --- STEP 4.5: IMMOBILITY LOGIC ---
+            immobility_data = immobility.update(v_total, theta)
             
             # Live Classification Logic for the HUD
             live_class = "N/A"
@@ -114,9 +121,17 @@ def main():
                 temp_payload = fsm.generate_alert_payload(frame_data)
                 if temp_payload:
                     live_class = temp_payload["classification"]
-            
-            # Pass v_total and live_class into the HUD
-            frame = hud.draw_telemetry(frame, v_total, theta, current_state, buffer_size, live_class, gait_metrics)
+            # Pass all module data into the HUD
+            frame = hud.draw_telemetry(
+                frame, 
+                v_total, 
+                theta, 
+                current_state, 
+                buffer_size, 
+                classification=live_class, 
+                gait_metrics=gait_metrics,
+                immobility_data=immobility_data 
+            )
         
             # Trigger full screen alert UI if timer runs out
             if current_state == "NO_RECOVERY":

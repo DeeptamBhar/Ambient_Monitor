@@ -19,23 +19,28 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None):
         """
         Overlays the kinematics data, FSM state, Fall Type, and live Gait Diagnostics.
         Dynamically resizes the background box if clinical alerts are triggered.
         """
         overlay = frame.copy()
         
-        # Determine how many alerts we have to calculate box size
+        # Combine alerts from all active medical modules
         diagnostics = []
+        if gait_metrics and "diagnostics" in gait_metrics:
+            diagnostics.extend(gait_metrics["diagnostics"])
+        if immobility_data and "alerts" in immobility_data:
+            diagnostics.extend(immobility_data["alerts"])
+
+        # Base dimensions
         box_height = 230
         box_width = 350
-        
-        if gait_metrics and "diagnostics" in gait_metrics:
-            diagnostics = gait_metrics["diagnostics"]
-            if len(diagnostics) > 0:
-                box_height += len(diagnostics) * 30
-                box_width = 450 # Make it wider to fit long medical strings
+
+        # Expand box dynamically if alerts are triggered
+        if len(diagnostics) > 0:
+            box_height += len(diagnostics) * 30
+            box_width = 480
 
         # Draw the dynamic background box
         cv2.rectangle(overlay, (5, 5), (box_width, box_height), self.colors["black"], -1)
@@ -70,13 +75,27 @@ class DebugVisualizer:
                         self.font, 0.6, self.colors["white"], 2)
             cv2.putText(frame, f"Cadence: {cadence} spm", (15, 220), 
                         self.font, 0.6, self.colors["white"], 2)
+
+        # Print Immobility Stopwatch
+        if immobility_data:
+            timer = immobility_data.get("motionless_sec", 0.0)
+            is_immobile = immobility_data.get("is_immobile", False)
             
-            # Render Clinical Alerts dynamically
-            y_offset = 250
-            for alert in diagnostics:
-                cv2.putText(frame, f"! {alert}", (15, y_offset), 
-                            self.font, 0.6, self.colors["red"], 2)
-                y_offset += 30
+            # Format raw seconds into a clean MM:SS format
+            mins = int(timer // 60)
+            secs = int(timer % 60)
+            time_str = f"{mins:02d}:{secs:02d}"
+            
+            timer_color = self.colors["red"] if is_immobile else self.colors["white"]
+            cv2.putText(frame, f"Motionless: {time_str}", (15, 250), 
+                        self.font, 0.6, timer_color, 2)
+        
+        # Render Clinical Alerts dynamically at the bottom
+        y_offset = 290
+        for alert in diagnostics:
+            cv2.putText(frame, f"! {alert}", (15, y_offset), 
+                        self.font, 0.6, self.colors["red"], 2)
+            y_offset += 30
 
         return frame
 
