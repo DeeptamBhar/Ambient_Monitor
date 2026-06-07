@@ -19,7 +19,7 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None):
         """
         Overlays the kinematics data, FSM state, Fall Type, and live Gait Diagnostics.
         Dynamically resizes the background box if clinical alerts are triggered.
@@ -32,9 +32,11 @@ class DebugVisualizer:
             diagnostics.extend(gait_metrics["diagnostics"])
         if immobility_data and "alerts" in immobility_data:
             diagnostics.extend(immobility_data["alerts"])
+        if agitation_data and "alerts" in agitation_data:
+            diagnostics.extend(agitation_data["alerts"])
 
         # Base dimensions
-        box_height = 230
+        box_height = 290
         box_width = 350
 
         # Expand box dynamically if alerts are triggered
@@ -90,11 +92,22 @@ class DebugVisualizer:
             cv2.putText(frame, f"Motionless: {time_str}", (15, 250), 
                         self.font, 0.6, timer_color, 2)
         
+        # Agitation Score Output
+        if agitation_data:
+            score = agitation_data.get("score", 0)
+            risk = agitation_data.get("risk", "low")
+            
+            # Color code the score
+            score_color = self.colors["white"]
+            if risk == "high": score_color = self.colors["red"]
+            elif risk == "medium": score_color = self.colors["yellow"]
+            
+            cv2.putText(frame, f"Agitation: [{score}] Risk: {risk.upper()}", (15, 280), self.font, 0.6, score_color, 2)
+        
         # Render Clinical Alerts dynamically at the bottom
         y_offset = 290
         for alert in diagnostics:
-            cv2.putText(frame, f"! {alert}", (15, y_offset), 
-                        self.font, 0.6, self.colors["red"], 2)
+            cv2.putText(frame, f"! {alert}", (15, y_offset), self.font, 0.6, self.colors["red"], 2)
             y_offset += 30
 
         return frame

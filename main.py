@@ -2,7 +2,7 @@ import cv2
 import yaml
 import argparse
 from ultralytics import YOLO
-from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector
 from utils import DebugVisualizer
 
 def main():
@@ -39,6 +39,7 @@ def main():
 
     # Initialize Immobility Tracker
     immobility = ImmobilityTracker(**config['immobility'])
+    agitation = AgitationDetector(**config['agitation'])
 
     print("Pipeline initialized. Press 'q' to quit.")
 
@@ -110,8 +111,9 @@ def main():
             frame = hud.draw_yolo_skeleton(results)
             buffer_size = len(kinematics.get_history())
 
-            # --- STEP 4.5: IMMOBILITY LOGIC ---
+            # CLINICAL LOGIC
             immobility_data = immobility.update(v_total, theta)
+            agitation_data = agitation.update(frame_data, theta)
             
             # Live Classification Logic for the HUD
             live_class = "N/A"
@@ -129,7 +131,8 @@ def main():
                 buffer_size, 
                 classification=live_class, 
                 gait_metrics=gait_metrics,
-                immobility_data=immobility_data 
+                immobility_data=immobility_data,
+                agitation_data=agitation_data
             )
         
             # Trigger full screen alert UI if timer runs out

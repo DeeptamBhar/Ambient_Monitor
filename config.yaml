@@ -27,3 +27,8 @@ immobility:
   movement_thresh_px: 5.0     # Ignore camera jitter below 5 px/s
   posture_thresh_deg: 15.0    # Ignore breathing/micro-shifts below 15 degrees
   critical_time_sec: 45.0     # SET TO 10 SECONDS FOR TESTING (Prod = 2700.0)
+
+agitation:
+  time_window: 30.0         # Look at the last 30 seconds (keep short for testing)
+  pacing_dist_px: 50.0      # Must move 50px before it counts as walking a direction
+  posture_thresh: 60.0      # Degrees boundary between sitting/standing
