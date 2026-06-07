@@ -33,6 +33,13 @@ The pipeline is structured similarly to an autonomous navigation stack, separate
    - Extracts **Stride Length** (pixels), **Cadence** (steps/min), and **Arm Swing** amplitude.
    - Evaluates telemetry against disease indicators to flag Parkinson's (shuffling gait), Stroke (asymmetry), and Frailty (low overall speed).
 
+6. **Immobility Tracker (`core/immobility.py`)**
+   - Long-term temporal stopwatch tracking macro-movements and posture shifts.
+   - Flags severe unresponsiveness or prolonged static positioning based on a configurable noise floor.
+
+7. **Agitation Detector (`core/agitation.py`)**
+   - Translates behavioral patterns into a quantitative Agitation Score (0-100) over a sliding time window.
+   - Tracks X-axis reversals for pacing and rapid angle boundary crossings for restlessness.
 
 ## Directory Structure
 
@@ -40,10 +47,12 @@ The pipeline is structured similarly to an autonomous navigation stack, separate
 ambient_monitor/
 ├── data/
 │   └── inputs/                 # Drop test .mp4 files here
-├── core/
+├── core/                       
 │   ├── __init__.py
+│   ├── agitation.py            # Behavioral scoring & pacing logic
 │   ├── fsm.py                  # State machine & payload generation
 │   ├── gait.py                 # Signal processing & diagnostics
+│   ├── immobility.py           # Long-term static monitoring
 │   └── kinematics.py           # Calculus & temporal buffer
 ├── utils/
 │   ├── __init__.py
