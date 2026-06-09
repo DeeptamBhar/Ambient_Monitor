@@ -13,3 +13,6 @@ venv/
 
 #vids
 *.mp4
+
+# pdfs
+*.pdf

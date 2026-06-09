@@ -32,3 +32,13 @@ agitation:
   time_window: 30.0         # Look at the last 30 seconds (keep short for testing)
   pacing_dist_px: 50.0      # Must move 50px before it counts as walking a direction
   posture_thresh: 60.0      # Degrees boundary between sitting/standing
+
+wandering:
+  night_start_hr: 22
+  night_end_hr: 6
+  door_check_window: 60  # Set to 60 seconds for quick testing
+  zones:
+    # Format: [x_min, y_min, x_max, y_max] from 0.0 to 1.0
+    Door: [0.75, 0.0, 1.0, 1.0]    # Right side of the screen
+    Unsafe: [0.0, 0.0, 0.25, 1.0]  # Left side of the screen (e.g. balcony)
+    Bed: [0.3, 0.5, 0.7, 1.0]      # Bottom center

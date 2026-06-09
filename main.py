@@ -2,7 +2,7 @@ import cv2
 import yaml
 import argparse
 from ultralytics import YOLO
-from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector
 from utils import DebugVisualizer
 
 def main():
@@ -40,6 +40,7 @@ def main():
     # Initialize Immobility Tracker
     immobility = ImmobilityTracker(**config['immobility'])
     agitation = AgitationDetector(**config['agitation'])
+    wandering = WanderingDetector(**config['wandering'])
 
     print("Pipeline initialized. Press 'q' to quit.")
 
@@ -50,6 +51,7 @@ def main():
             break
         results = model(frame, verbose=False)
         frame_data = {}
+        frame_height, frame_width = frame.shape[:2] #Grab dimensions
 
         # PERCEPTION EXTRACTION 
         if results[0].keypoints is not None and len(results[0].keypoints.xy) > 0:
@@ -112,8 +114,10 @@ def main():
             buffer_size = len(kinematics.get_history())
 
             # CLINICAL LOGIC
+            # --- STEP 4.5: CLINICAL LOGIC ---
             immobility_data = immobility.update(v_total, theta)
             agitation_data = agitation.update(frame_data, theta)
+            wandering_data = wandering.update(frame_data, frame_width, frame_height) 
             
             # Live Classification Logic for the HUD
             live_class = "N/A"
@@ -132,7 +136,8 @@ def main():
                 classification=live_class, 
                 gait_metrics=gait_metrics,
                 immobility_data=immobility_data,
-                agitation_data=agitation_data
+                agitation_data=agitation_data,
+                wandering_data=wandering_data
             )
         
             # Trigger full screen alert UI if timer runs out
