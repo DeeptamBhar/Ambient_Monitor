@@ -19,7 +19,7 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None):
         """
         Overlays the kinematics data, FSM state, Fall Type, and live Gait Diagnostics.
         Dynamically resizes the background box if clinical alerts are triggered.
@@ -34,6 +34,8 @@ class DebugVisualizer:
             diagnostics.extend(immobility_data["alerts"])
         if agitation_data and "alerts" in agitation_data:
             diagnostics.extend(agitation_data["alerts"])
+        if wandering_data and "alerts" in wandering_data: 
+            diagnostics.extend(wandering_data["alerts"])
 
         # Base dimensions
         box_height = 290

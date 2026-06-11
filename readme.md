@@ -78,13 +78,13 @@ The system can process live webcam feeds or pre-recorded video files.
 **To run via Webcam:**
 
 ```bash
-python main.py
+python3 main.py
 ```
 
 **To run a test video:**
 
 ```bash
-python main.py --source data/inputs/burpees.mp4
+python3 main.py --source data/inputs/burpees.mp4
 ```
 
 
