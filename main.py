@@ -6,6 +6,22 @@ from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTrac
 from utils import DebugVisualizer
 
 def main():
+    """
+    Main entry point for the Ambient Intelligence fall detection pipeline.
+    
+    This function orchestrates the complete computer vision and clinical analysis pipeline:
+    1. Loads YOLO model and video source (webcam or file)
+    2. Extracts human pose keypoints from each frame using YOLOv8
+    3. Processes kinematics data through the Finite State Machine for fall detection
+    4. Analyzes clinical indicators: gait patterns, immobility, agitation, and wandering behavior
+    5. Renders real-time telemetry and alerts to the video output
+    
+    Configuration is loaded from config.yaml and includes parameters for all detection modules.
+    Press 'q' during execution to quit.
+    
+    Returns:
+        None. Runs until video ends or user quits.
+    """
     # Set up argparse 
     parser = argparse.ArgumentParser(description="Run the Fall Detection Pipeline")
     parser.add_argument('--source', type=str, default='0', help="Path to video file or '0' for webcam")

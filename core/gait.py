@@ -3,7 +3,26 @@ import numpy as np
 from collections import deque
 
 class GaitAnalyzer:
+    """
+    Analyzes gait patterns and stride characteristics for clinical disease detection.
+    
+    Processes ankle positions to detect individual steps, calculates clinical metrics
+    (cadence, stride length, walking speed), and diagnoses potential neurological disorders:
+    - Parkinson's disease (shuffling, reduced arm swing)
+    - Stroke/hemiparesis (asymmetric gait)
+    - Frailty (slow walking speed)
+    """
+    
     def __init__(self, fps=30.0, step_cooldown=0.5):
+        """
+        Initialize the gait analyzer with temporal and spatial parameters.
+        
+        Args:
+            fps (float, optional): Frames per second of video input. Defaults to 30.0.
+                Used to convert frame intervals to temporal measurements.
+            step_cooldown (float, optional): Minimum time (seconds) between step detections.
+                Prevents false positive peak detections in ankle distance. Defaults to 0.5.
+        """
         self.fps = fps
         self.step_cooldown = step_cooldown
         
@@ -74,7 +93,13 @@ class GaitAnalyzer:
 
     def _calculate_cadence(self):
         """
-        Calculates steps per minute based on recent step timestamps.
+        Calculate step frequency (cadence) from recent step timestamps.
+        
+        Converts inter-step intervals to cadence in steps per minute (spm).
+        Requires at least 2 step timestamps to calculate.
+        
+        Returns:
+            None. Updates self.cadence attribute in-place.
         """
         if len(self.step_timestamps) < 2:
             self.cadence = 0.0
@@ -93,7 +118,22 @@ class GaitAnalyzer:
 
     def diagnose(self):
         """
-        Evaluates current metrics against clinical disease indicators.
+        Evaluate current gait metrics against clinical diagnostic criteria.
+        
+        Detects potential neurological and musculoskeletal disorders:
+        
+        1. Parkinson's Disease Indicators:
+           - Shuffling gait: Short stride length (<40px) with maintained cadence
+           - Reduced arm swing: Minimal arm movement (<20px distance from body)
+        
+        2. Stroke/Hemiparesis Indicators:
+           - Asymmetric gait: <0.75 ratio between shorter and longer leg strides
+        
+        3. Frailty Indicators:
+           - Slow walking: Speed <50 px/sec
+        
+        Returns:
+            list: Clinical alert messages if abnormalities detected, empty list otherwise.
         """
         alerts = []
         
@@ -120,6 +160,16 @@ class GaitAnalyzer:
         return alerts
 
     def _get_metrics(self):
+        """
+        Compile current gait metrics and diagnostic findings into a structured report.
+        
+        Returns:
+            dict: Dictionary containing:
+                'stride_length_px' (float): Most recent stride length in pixels
+                'cadence_spm' (float): Steps per minute
+                'speed_px_s' (float): Current walking speed in pixels/second
+                'diagnostics' (list): List of clinical alerts if abnormalities detected
+        """
         return {
             "stride_length_px": round(self.current_stride_length, 2),
             "cadence_spm": round(self.cadence, 1),

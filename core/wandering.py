@@ -3,7 +3,28 @@ from datetime import datetime
 from collections import deque
 
 class WanderingDetector:
+    """
+    Detects unsafe wandering behavior, particularly nighttime exits and unsafe location access.
+    
+    Monitors patient location relative to defined zones and temporal context (day vs night).
+    Flags critical alerts for night-time room exits, repeated door checking, and access to
+    unsafe areas. Provides contextual risk scoring based on behavioral patterns.
+    """
+    
     def __init__(self, zones, night_start_hr=22, night_end_hr=6, door_check_window=300):
+        """
+        Initialize the wandering detector with spatial and temporal parameters.
+        
+        Args:
+            zones (dict): Dictionary mapping zone names to bounding boxes.
+                Format: {"zone_name": [x1, y1, x2, y2]}
+                Coordinates should be normalized 0.0-1.0 (relative to frame dimensions).
+                Example: {"Door": [0.8, 0.4, 1.0, 0.6], "Bed": [0.0, 0.0, 0.3, 0.3]}
+            night_start_hr (int, optional): Hour (0-23) when night period begins. Defaults to 22 (10 PM).
+            night_end_hr (int, optional): Hour (0-23) when night period ends. Defaults to 6 (6 AM).
+            door_check_window (int, optional): Time window (seconds) to count door approach frequency.
+                Defaults to 300 (5 minutes).
+        """
         # Dictionary of zones: {"name": [x1, y1, x2, y2]} in normalized coordinates (0.0 to 1.0)
         self.zones = zones 
         
@@ -18,6 +39,24 @@ class WanderingDetector:
         self.current_zone = "Unknown"
 
     def update(self, frame_data, frame_width, frame_height):
+        """
+        Update wandering detection based on current patient location and time of day.
+        
+        Performs spatial zone detection and temporal night-time checking. Tracks repeated
+        door approaches and flags alerts for unsafe behaviors.
+        
+        Args:
+            frame_data (dict): Frame containing joint positions, specifically 'hips' for location.
+            frame_width (int): Width of the video frame in pixels.
+            frame_height (int): Height of the video frame in pixels.
+        
+        Returns:
+            dict: Risk assessment containing:
+                'risk' (str): Risk level - 'Low', 'Medium', 'High', or 'Critical'
+                'current_zone' (str): Current detected zone or 'Floor'/'Exited'
+                'is_night' (bool): True if current time is within night hours
+                'alerts' (list): List of specific alert messages
+        """
         # 1. Temporal Check: Is it night time?
         current_hour = datetime.now().hour
         is_night = (current_hour >= self.night_start_hr) or (current_hour < self.night_end_hr)
@@ -62,7 +101,21 @@ class WanderingDetector:
         return self._generate_score(is_night)
 
     def _generate_score(self, is_night):
-        """Maps behavior to the strict Low/Medium/High/Critical spec."""
+        """
+        Map current behavior to clinical risk level with specific alerts.
+        
+        Risk assessment rules:
+        - Critical: Unsafe location, night-time exit, or immediate danger
+        - High: Repeated door checking during night (potential exit planning)
+        - Medium: Out of bed during night, or repeated door checking during day
+        - Low: Normal daytime activity
+        
+        Args:
+            is_night (bool): True if current time is within configured night hours.
+        
+        Returns:
+            dict: Containing 'risk' (str), 'current_zone' (str), 'is_night' (bool), 'alerts' (list)
+        """
         risk = "Low"
         alerts = []
         

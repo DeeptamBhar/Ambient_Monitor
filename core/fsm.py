@@ -2,6 +2,16 @@ import time
 from enum import Enum
 
 class FallState(Enum):
+    """
+    Enumeration of fall detection state machine states.
+    
+    States represent the progression through a fall event:
+    - STANDING: Normal upright posture, no fall risk.
+    - LOSING_BALANCE: Body angle exceeds threshold, indicating loss of balance.
+    - RAPID_DESCENT: High velocity detected, indicating active falling motion.
+    - GROUND_CONTACT: Low impact velocity and horizontal body angle, indicating contact with ground.
+    - NO_RECOVERY: Patient remains on ground beyond max_recovery_time threshold.
+    """
     STANDING = "STANDING"
     LOSING_BALANCE = "LOSING_BALANCE"
     RAPID_DESCENT = "RAPID_DESCENT"
@@ -9,6 +19,15 @@ class FallState(Enum):
     NO_RECOVERY = "NO_RECOVERY"
 
 class FallDetectorFSM:
+    """
+    Finite State Machine for detecting falls using kinematic thresholds.
+    
+    Implements a 5-state model that progresses from standing → loss of balance → rapid descent
+    → ground contact → no recovery. Uses body angle (theta), velocity magnitude (v_total),
+    and vertical velocity (vy) to make state transitions. Includes kinetic override for
+    high-impact falls (>critical_impact_thresh) that bypass the recovery timer.
+    """
+    
     def __init__(self, 
                  theta_imbalance=60.0, 
                  v_total_fall_thresh=150.0,   # Swapped vy for v_total
@@ -16,6 +35,23 @@ class FallDetectorFSM:
                  theta_horizontal=30.0, 
                  vy_impact=50.0, 
                  max_recovery_time=5.0):
+        """
+        Initialize the Fall Detector FSM with kinematic thresholds.
+        
+        Args:
+            theta_imbalance (float, optional): Body angle threshold (degrees) for detecting loss of balance.
+                Values <60° indicate body leaning, >60° indicate upright posture. Defaults to 60.0.
+            v_total_fall_thresh (float, optional): Total velocity threshold (pixels/sec) to classify as fall.
+                Accelerations >150 px/s typically indicate falling motion. Defaults to 150.0.
+            critical_impact_thresh (float, optional): Extreme velocity threshold for kinetic override.
+                >350 px/s bypasses recovery timer (indicates very severe impact). Defaults to 350.0.
+            theta_horizontal (float, optional): Body angle threshold (degrees) for ground contact.
+                <30° indicates nearly horizontal (lying down). Defaults to 30.0.
+            vy_impact (float, optional): Vertical velocity threshold (pixels/sec) for impact detection.
+                Negative vy >50 px/s indicates rapid downward motion. Defaults to 50.0.
+            max_recovery_time (float, optional): Time threshold (seconds) for transitioning from
+                GROUND_CONTACT to NO_RECOVERY if no recovery motion detected. Defaults to 5.0.
+        """
         
         self.state = FallState.STANDING
         
@@ -30,6 +66,20 @@ class FallDetectorFSM:
         self.kinetic_override = False # Tracks if the crash was severe
 
     def update(self, v_total, vy, theta):
+        """
+        Update FSM state based on current kinematic measurements.
+        
+        Implements state transitions according to the 5-state fall detection model.
+        Kinetic override allows immediate NO_RECOVERY state if impact is severe enough.
+        
+        Args:
+            v_total (float): Total velocity magnitude in pixels/second.
+            vy (float): Vertical velocity component in pixels/second (negative = downward).
+            theta (float): Body angle in degrees (90° = upright, 0°/180° = horizontal).
+        
+        Returns:
+            str: Current state value as string (e.g., "STANDING", "RAPID_DESCENT", "NO_RECOVERY").
+        """
         if self.state == FallState.STANDING:
             if theta < self.theta_imbalance:
                 self.state = FallState.LOSING_BALANCE

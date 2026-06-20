@@ -1,7 +1,24 @@
 import cv2
 
 class DebugVisualizer:
+    """
+    Renders real-time telemetry, diagnostic data, and alerts onto video frames.
+    
+    Provides visual feedback for:
+    - Pose skeleton and detection confidence
+    - Kinematic measurements (velocity, body angle)
+    - FSM state and fall classification
+    - Clinical diagnostics (gait metrics, agitation, immobility, wandering alerts)
+    - Critical fall alerts with dynamic visual emphasis
+    """
+    
     def __init__(self):
+        """
+        Initialize the debug visualizer with OpenCV rendering parameters.
+        
+        Sets up color palette (BGR format for OpenCV) and font parameters for rendering
+        text overlays on video frames.
+        """
         # OpenCV uses BGR (Blue, Green, Red) instead of RGB.
         self.colors = {
             "white": (255, 255, 255),
@@ -21,8 +38,26 @@ class DebugVisualizer:
 
     def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None):
         """
-        Overlays the kinematics data, FSM state, Fall Type, and live Gait Diagnostics.
-        Dynamically resizes the background box if clinical alerts are triggered.
+        Render comprehensive telemetry and diagnostic data onto video frame.
+        
+        Overlays kinematics (velocity, body angle), FSM state, fall classification,
+        and all clinical module diagnostics. Dynamically expands display area if
+        multiple alerts are triggered to prevent text overflow.
+        
+        Args:
+            frame (numpy.ndarray): Video frame (BGR format)
+            v_total (float): Total velocity in pixels/second
+            theta (float): Body angle in degrees
+            current_state (str): Current FSM state ("STANDING", "RAPID_DESCENT", etc.)
+            buffer_size (int): Current size of kinematic buffer (0-30 typically)
+            classification (str, optional): Fall type classification ("Forward", "Backward", "Side", etc.)
+            gait_metrics (dict, optional): Dictionary with stride_length_px, cadence_spm, speed_px_s, diagnostics
+            immobility_data (dict, optional): Dictionary with motionless_sec, is_immobile, alerts
+            agitation_data (dict, optional): Dictionary with score, risk, alerts
+            wandering_data (dict, optional): Dictionary with risk, current_zone, is_night, alerts
+        
+        Returns:
+            numpy.ndarray: Frame with rendered telemetry overlay
         """
         overlay = frame.copy()
         
@@ -116,7 +151,17 @@ class DebugVisualizer:
 
     def draw_critical_alert(self, frame, alert_payload):
         """
-        Flashes a massive red warning on the screen if a fall is detected.
+        Render full-screen critical alert for detected falls.
+        
+        Displays prominent red border and centered warning text indicating fall detection.
+        Used when FSM enters NO_RECOVERY state to immediately notify caregivers.
+        
+        Args:
+            frame (numpy.ndarray): Video frame (BGR format)
+            alert_payload (dict): Alert data containing 'classification' (fall type) and severity info
+        
+        Returns:
+            numpy.ndarray: Frame with red border and critical alert text overlay
         """
         if not alert_payload:
             return frame

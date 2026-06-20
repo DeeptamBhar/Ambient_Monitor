@@ -1,7 +1,28 @@
 import time
 
 class ImmobilityTracker:
+    """
+    Tracks prolonged immobility and triggers alerts if patient remains motionless too long.
+    
+    Monitors two independent stopwatches: spatial movement and postural changes.
+    Immobility is confirmed when both indicators show no activity for the critical threshold.
+    Uses the minimum of the two timers to ensure any motion or position change resets the alert.
+    """
+    
     def __init__(self, movement_thresh_px=5.0, posture_thresh_deg=15.0, critical_time_sec=2700.0):
+        """
+        Initialize the immobility tracker with sensitivity thresholds.
+        
+        Args:
+            movement_thresh_px (float, optional): Minimum horizontal displacement (pixels)
+                to register as "movement". Below this threshold, motion is considered noise/jitter.
+                Defaults to 5.0.
+            posture_thresh_deg (float, optional): Minimum body angle change (degrees)
+                to register as "posture shift". Defaults to 15.0.
+            critical_time_sec (float, optional): Duration (seconds) of complete motionlessness
+                before triggering immobility alert. Defaults to 2700.0 (45 minutes).
+                For bed-bound patients, this prevents false alarms during sleep.
+        """
         # The "Noise Floor" - Ignore micro-jitters
         self.movement_thresh = movement_thresh_px
         self.posture_thresh = posture_thresh_deg
