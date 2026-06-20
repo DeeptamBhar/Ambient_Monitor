@@ -7,7 +7,7 @@ from utils import DebugVisualizer
 
 def main():
     """
-    Main entry point for the Ambient Intelligence fall detection pipeline.
+    Main entry point for the fall detection pipeline.
     
     This function orchestrates the complete computer vision and clinical analysis pipeline:
     1. Loads YOLO model and video source (webcam or file)
