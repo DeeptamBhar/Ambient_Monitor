@@ -1,8 +1,12 @@
 # AMBIENT MONITOR SYSTEM CONFIG
 
+# model:
+#   weights: "yolov8n-pose.pt"
+#   confidence_threshold: 0.6    # Ignore keypoints with confidence lower than this
+
 model:
-  weights: "yolov8n-pose.pt"
-  confidence_threshold: 0.6    # Ignore keypoints with confidence lower than this
+  weights: "yolo11n-pose.pt"     # Use the new YOLOv11 model for better accuracy
+  confidence_threshold: 0.6
 
 kinematics:
   max_frames: 30               # 1 second of temporal memory
