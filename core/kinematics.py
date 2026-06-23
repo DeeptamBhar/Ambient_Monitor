@@ -111,7 +111,62 @@ class KinematicsEngine:
         elif r_hip:
             return r_hip
         return None
+    
+    def calculate_posture(self):
+        """
+        Calculates the physical posture (STANDING, SITTING, LYING DOWN).
+        Uses both Thigh Angle (for profile views) and Foreshortening Ratios (for frontal views).
+        """
+        if not self.is_ready():
+            return "UNKNOWN"
 
+        latest_frame = self.buffer[-1]
+        
+        hips = latest_frame.get("hips", (None, None))
+        knees = latest_frame.get("knees", (None, None))
+        neck = latest_frame.get("neck", None)
+        
+        # Grab whichever leg YOLO can see clearly
+        hip = hips[0] if hips[0] else hips[1]
+        knee = knees[0] if knees[0] else knees[1]
+
+        if not hip or not knee:
+            theta = self.calculate_body_angle()
+            return "STANDING" if theta > 60.0 else "LYING DOWN"
+
+        # --- 1. PROFILE VIEW CHECK ---
+        # If they are sitting sideways, the thigh angle relative to the floor goes flat.
+        dx = abs(hip[0] - knee[0])
+        dy = abs(hip[1] - knee[1])
+        thigh_angle = math.degrees(math.atan2(dy, dx + 1e-5))
+
+        if thigh_angle < 45.0:
+            return "SITTING"
+
+        # --- 2. FRONTAL VIEW CHECK (Z-Axis Foreshortening) ---
+        # If they are facing the camera, the angle is steep but the thigh length shrinks.
+        if neck and hips[0] and hips[1]:
+            mid_hip = ((hips[0][0] + hips[1][0]) / 2, (hips[0][1] + hips[1][1]) / 2)
+            
+            # Calculate pixel lengths using hypotenuse
+            torso_length = math.hypot(neck[0] - mid_hip[0], neck[1] - mid_hip[1])
+            thigh_length = math.hypot(hip[0] - knee[0], hip[1] - knee[1])
+            
+            if torso_length > 0:
+                foreshortening_ratio = thigh_length / torso_length
+                
+                # If the thigh is less than 60% the length of the torso, they are sitting forward.
+                if foreshortening_ratio < 0.60:
+                    return "SITTING"
+
+        # --- 3. FALLBACK ---
+        # If legs are long and vertical, check the spine to ensure they aren't lying flat.
+        theta = self.calculate_body_angle()
+        if theta < 30.0:
+            return "LYING DOWN"
+            
+        return "STANDING"
+    
     def calculate_velocity_vector(self):
         """
         Calculates vx, vy, and total velocity magnitude (v_total) in pixels per second.

@@ -2,6 +2,7 @@ import cv2
 import yaml
 import argparse
 from ultralytics import YOLO
+from datetime import datetime
 from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector
 from utils import DebugVisualizer
 
@@ -59,6 +60,8 @@ def main():
     wandering = WanderingDetector(**config['wandering'])
 
     print("Pipeline initialized. Press 'q' to quit.")
+
+    active_alerts_memory = set()
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -121,9 +124,15 @@ def main():
             
             vx, vy, v_total = kinematics.calculate_velocity_vector()
             theta = kinematics.calculate_body_angle()
+
+            # NEW: Calculate actual physical posture based on thighs
+            posture = kinematics.calculate_posture()
             
             # Feed the FSM the total magnitude AND the vertical drop
             current_state = fsm.update(v_total, vy, theta)
+
+            # If the FSM says they are "STANDING" (safe), override it with the actual posture
+            display_state = posture if current_state == "STANDING" else current_state
             
             # THE DEBUG VISUALIZER 
             frame = hud.draw_yolo_skeleton(results)
@@ -133,7 +142,31 @@ def main():
             # --- STEP 4.5: CLINICAL LOGIC ---
             immobility_data = immobility.update(v_total, theta)
             agitation_data = agitation.update(frame_data, theta)
-            wandering_data = wandering.update(frame_data, frame_width, frame_height) 
+            wandering_data = wandering.update(frame_data, frame_width, frame_height)
+
+            # --- STEP 4.6: TERMINAL LOGGING ---
+            # 1. Harvest all active alerts from the modules
+            current_frame_alerts = set()
+            if gait_metrics and "diagnostics" in gait_metrics:
+                current_frame_alerts.update(gait_metrics["diagnostics"])
+            if immobility_data and "alerts" in immobility_data:
+                current_frame_alerts.update(immobility_data["alerts"])
+            if agitation_data and "alerts" in agitation_data:
+                current_frame_alerts.update(agitation_data["alerts"])
+            if wandering_data and "alerts" in wandering_data:
+                current_frame_alerts.update(wandering_data["alerts"])
+
+            # 2. Find alerts that just triggered on this exact frame
+            new_alerts = current_frame_alerts - active_alerts_memory
+            
+            # 3. Print them in red with a timestamp
+            for alert in new_alerts:
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # \033[91m makes it bright red, \033[0m resets the color
+                print(f"\033[0m[{timestamp}] SYSTEM ALERT: {alert}\033[0m")
+                
+            # 4. Update the memory for the next frame
+            active_alerts_memory = current_frame_alerts 
             
             # Live Classification Logic for the HUD
             live_class = "N/A"
@@ -147,7 +180,7 @@ def main():
                 frame, 
                 v_total, 
                 theta, 
-                current_state, 
+                display_state, 
                 buffer_size, 
                 classification=live_class, 
                 gait_metrics=gait_metrics,
