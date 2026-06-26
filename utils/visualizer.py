@@ -8,18 +8,14 @@ class DebugVisualizer:
     - Pose skeleton and detection confidence
     - Kinematic measurements (velocity, body angle)
     - FSM state and fall classification
-    - Clinical diagnostics (gait metrics, agitation, immobility, wandering alerts)
+    - Clinical diagnostics (gait metrics, agitation, immobility, wandering, seizure alerts)
     - Critical fall alerts with dynamic visual emphasis
     """
     
     def __init__(self):
         """
         Initialize the debug visualizer with OpenCV rendering parameters.
-        
-        Sets up color palette (BGR format for OpenCV) and font parameters for rendering
-        text overlays on video frames.
         """
-        # OpenCV uses BGR (Blue, Green, Red) instead of RGB.
         self.colors = {
             "white": (255, 255, 255),
             "yellow": (0, 255, 255),
@@ -36,28 +32,9 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None, seizure_data=None):
         """
         Render comprehensive telemetry and diagnostic data onto video frame.
-        
-        Overlays kinematics (velocity, body angle), FSM state, fall classification,
-        and all clinical module diagnostics. Dynamically expands display area if
-        multiple alerts are triggered to prevent text overflow.
-        
-        Args:
-            frame (numpy.ndarray): Video frame (BGR format)
-            v_total (float): Total velocity in pixels/second
-            theta (float): Body angle in degrees
-            current_state (str): Current FSM state ("STANDING", "RAPID_DESCENT", etc.)
-            buffer_size (int): Current size of kinematic buffer (0-30 typically)
-            classification (str, optional): Fall type classification ("Forward", "Backward", "Side", etc.)
-            gait_metrics (dict, optional): Dictionary with stride_length_px, cadence_spm, speed_px_s, diagnostics
-            immobility_data (dict, optional): Dictionary with motionless_sec, is_immobile, alerts
-            agitation_data (dict, optional): Dictionary with score, risk, alerts
-            wandering_data (dict, optional): Dictionary with risk, current_zone, is_night, alerts
-        
-        Returns:
-            numpy.ndarray: Frame with rendered telemetry overlay
         """
         overlay = frame.copy()
         
@@ -71,10 +48,12 @@ class DebugVisualizer:
             diagnostics.extend(agitation_data["alerts"])
         if wandering_data and "alerts" in wandering_data: 
             diagnostics.extend(wandering_data["alerts"])
+        if seizure_data and "alerts" in seizure_data: 
+            diagnostics.extend(seizure_data["alerts"]) 
 
-        # Base dimensions
-        box_height = 290
-        box_width = 350
+        # Base dimensions expanded to fit all modules
+        box_height = 400
+        box_width = 380
 
         # Expand box dynamically if alerts are triggered
         if len(diagnostics) > 0:
@@ -120,7 +99,6 @@ class DebugVisualizer:
             timer = immobility_data.get("motionless_sec", 0.0)
             is_immobile = immobility_data.get("is_immobile", False)
             
-            # Format raw seconds into a clean MM:SS format
             mins = int(timer // 60)
             secs = int(timer % 60)
             time_str = f"{mins:02d}:{secs:02d}"
@@ -134,15 +112,35 @@ class DebugVisualizer:
             score = agitation_data.get("score", 0)
             risk = agitation_data.get("risk", "low")
             
-            # Color code the score
             score_color = self.colors["white"]
             if risk == "high": score_color = self.colors["red"]
             elif risk == "medium": score_color = self.colors["yellow"]
             
             cv2.putText(frame, f"Agitation: [{score}] Risk: {risk.upper()}", (15, 280), self.font, 0.6, score_color, 2)
+
+        # Wandering Telemetry
+        if wandering_data:
+            zone = wandering_data.get("current_zone", "Unknown")
+            risk = wandering_data.get("risk", "Low")
+            time_str = "Night" if wandering_data.get("is_night") else "Day"
+            
+            risk_color = self.colors["white"]
+            if risk == "Critical": risk_color = self.colors["red"]
+            elif risk == "High": risk_color = self.colors["yellow"]
+            
+            cv2.putText(frame, f"Zone: {zone} ({time_str})", (15, 310), self.font, 0.6, self.colors["white"], 2)
+            cv2.putText(frame, f"Wandering Risk: {risk.upper()}", (15, 340), self.font, 0.6, risk_color, 2)
+
+        # Seizure Telemetry
+        if seizure_data:
+            event = seizure_data.get("event", "none")
+            conf = seizure_data.get("confidence", 0.0)
+            color = self.colors["red"] if conf >= 0.75 else self.colors["white"]
+            
+            cv2.putText(frame, f"Seizure: {event.upper()} [{conf:.2f}]", (15, 370), self.font, 0.6, color, 2)
         
         # Render Clinical Alerts dynamically at the bottom
-        y_offset = 290
+        y_offset = 410
         for alert in diagnostics:
             cv2.putText(frame, f"! {alert}", (15, y_offset), self.font, 0.6, self.colors["red"], 2)
             y_offset += 30
@@ -152,16 +150,6 @@ class DebugVisualizer:
     def draw_critical_alert(self, frame, alert_payload):
         """
         Render full-screen critical alert for detected falls.
-        
-        Displays prominent red border and centered warning text indicating fall detection.
-        Used when FSM enters NO_RECOVERY state to immediately notify caregivers.
-        
-        Args:
-            frame (numpy.ndarray): Video frame (BGR format)
-            alert_payload (dict): Alert data containing 'classification' (fall type) and severity info
-        
-        Returns:
-            numpy.ndarray: Frame with red border and critical alert text overlay
         """
         if not alert_payload:
             return frame

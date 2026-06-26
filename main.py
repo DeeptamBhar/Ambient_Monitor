@@ -3,7 +3,7 @@ import yaml
 import argparse
 from ultralytics import YOLO
 from datetime import datetime
-from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector, SeizureDetector
 from utils import DebugVisualizer
 
 def main():
@@ -58,10 +58,12 @@ def main():
     immobility = ImmobilityTracker(**config['immobility'])
     agitation = AgitationDetector(**config['agitation'])
     wandering = WanderingDetector(**config['wandering'])
+    seizure = SeizureDetector(**config['seizure'])
 
     print("Pipeline initialized. Press 'q' to quit.")
 
     active_alerts_memory = set()
+    target_track_id = None
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -142,7 +144,10 @@ def main():
             # --- STEP 4.5: CLINICAL LOGIC ---
             immobility_data = immobility.update(v_total, theta)
             agitation_data = agitation.update(frame_data, theta)
-            wandering_data = wandering.update(frame_data, frame_width, frame_height)
+            wandering_data = wandering.update(frame_data, frame_width, frame_height) 
+            
+            # FUSE PIPELINE DATA FOR SEIZURE CHECK
+            seizure_data = seizure.update(frame_data, current_state, immobility_data)
 
             # --- STEP 4.6: TERMINAL LOGGING ---
             # 1. Harvest all active alerts from the modules
@@ -155,6 +160,8 @@ def main():
                 current_frame_alerts.update(agitation_data["alerts"])
             if wandering_data and "alerts" in wandering_data:
                 current_frame_alerts.update(wandering_data["alerts"])
+            if seizure_data and "alerts" in seizure_data:             
+                current_frame_alerts.update(seizure_data["alerts"])   
 
             # 2. Find alerts that just triggered on this exact frame
             new_alerts = current_frame_alerts - active_alerts_memory
@@ -186,7 +193,8 @@ def main():
                 gait_metrics=gait_metrics,
                 immobility_data=immobility_data,
                 agitation_data=agitation_data,
-                wandering_data=wandering_data
+                wandering_data=wandering_data,
+                seizure_data=seizure_data
             )
         
             # Trigger full screen alert UI if timer runs out
