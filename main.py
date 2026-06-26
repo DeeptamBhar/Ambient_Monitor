@@ -3,7 +3,7 @@ import yaml
 import argparse
 from ultralytics import YOLO
 from datetime import datetime
-from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector, SeizureDetector
+from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector, SeizureDetector, SafetyMonitor
 from utils import DebugVisualizer
 
 def main():
@@ -34,6 +34,7 @@ def main():
 
     # Initialize your modules using the config file
     model = YOLO(config['model']['weights'])
+    object_model = YOLO("hospital_weights.pt")
     
     if args.source == '0':
         cap = cv2.VideoCapture(0)
@@ -60,6 +61,9 @@ def main():
     wandering = WanderingDetector(**config['wandering'])
     seizure = SeizureDetector(**config['seizure'])
 
+    # Initialize the Safety Monitor (Configure based on your patient needs)
+    safety = SafetyMonitor(requires_walker=True, on_oxygen=False, has_iv=False)
+
     print("Pipeline initialized. Press 'q' to quit.")
 
     active_alerts_memory = set()
@@ -70,14 +74,48 @@ def main():
         if not success:
             print("Video stream ended or failed to read frame.")
             break
-        results = model(frame, verbose=False)
+        
+        # Run pose tracking with persistence enabled
+        results = model.track(frame, persist=True, verbose=False)
+        # Run custom object detection for hospital commodities
+        obj_results = object_model(frame, verbose=False)
+
         frame_data = {}
         frame_height, frame_width = frame.shape[:2] #Grab dimensions
 
-        # PERCEPTION EXTRACTION 
-        if results[0].keypoints is not None and len(results[0].keypoints.xy) > 0:
-            keypoints = results[0].keypoints.xy[0].cpu().numpy()
-            confidences = results[0].keypoints.conf[0].cpu().numpy()
+        # --- EXTRACT ENVIRONMENTAL OBJECTS (Walker = Class 0) ---
+        environmental_objects = []
+        if obj_results[0].boxes is not None:
+            obj_boxes = obj_results[0].boxes.xyxy.cpu().numpy()
+            obj_classes = obj_results[0].boxes.cls.cpu().numpy()
+            obj_confidences = obj_results[0].boxes.conf.cpu().numpy()
+            
+            for i in range(len(obj_boxes)):
+                if obj_confidences[i] > 0.5:
+                    class_id = int(obj_classes[i])
+                    if class_id == 0:  # Class 0 is your custom walker
+                        environmental_objects.append({
+                            "name": "walker",
+                            "bbox": obj_boxes[i].tolist()
+                        })
+
+        patient_bbox = None
+
+        # --- EXTRACT POSE KEYPOINTS & PATIENT BOUNDING BOX ---
+        if results[0].boxes is not None and results[0].boxes.id is not None and results[0].keypoints is not None:
+            track_ids = results[0].boxes.id.int().cpu().tolist()
+            all_keypoints = results[0].keypoints.xy.cpu().numpy()
+            all_confidences = results[0].keypoints.conf.cpu().numpy()
+            all_bboxes = results[0].boxes.xyxy.cpu().numpy()
+
+            # Track a single target patient consistently
+            if target_track_id not in track_ids:
+                target_track_id = track_ids[0]
+
+            target_idx = track_ids.index(target_track_id)
+            keypoints = all_keypoints[target_idx]
+            confidences = all_confidences[target_idx]
+            patient_bbox = all_bboxes[target_idx].tolist()
 
             def get_pt(idx):
                 # Pulling the confidence threshold from the YAML file
@@ -111,8 +149,8 @@ def main():
             }
 
         # TEMPORAL MEMORY 
-        kinematics.update(frame_data)
 
+        kinematics.update(frame_data)
         # Calculate velocity first so we can feed it to the gait analyzer
         v_total = kinematics.calculate_velocity_vector()[2] if kinematics.is_ready() else 0.0
 
@@ -149,6 +187,15 @@ def main():
             # FUSE PIPELINE DATA FOR SEIZURE CHECK
             seizure_data = seizure.update(frame_data, current_state, immobility_data)
 
+            # --- SENSOR FUSION SAFETY EVALUATION ---
+            safety_data = safety.update(
+                frame_data, 
+                display_state, 
+                v_total, 
+                environmental_objects=environmental_objects, 
+                patient_bbox=patient_bbox
+            )
+
             # --- STEP 4.6: TERMINAL LOGGING ---
             # 1. Harvest all active alerts from the modules
             current_frame_alerts = set()
@@ -162,6 +209,8 @@ def main():
                 current_frame_alerts.update(wandering_data["alerts"])
             if seizure_data and "alerts" in seizure_data:             
                 current_frame_alerts.update(seizure_data["alerts"])   
+            if safety_data and "alerts" in safety_data:
+                current_frame_alerts.update(safety_data["alerts"])
 
             # 2. Find alerts that just triggered on this exact frame
             new_alerts = current_frame_alerts - active_alerts_memory
@@ -194,7 +243,9 @@ def main():
                 immobility_data=immobility_data,
                 agitation_data=agitation_data,
                 wandering_data=wandering_data,
-                seizure_data=seizure_data
+                seizure_data=seizure_data,
+                safety_data=safety_data,
+                environmental_objects=environmental_objects
             )
         
             # Trigger full screen alert UI if timer runs out

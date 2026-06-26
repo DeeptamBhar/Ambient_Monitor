@@ -32,7 +32,7 @@ class DebugVisualizer:
         """
         return results[0].plot()
 
-    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None, seizure_data=None):
+    def draw_telemetry(self, frame, v_total, theta, current_state, buffer_size, classification="N/A", gait_metrics=None, immobility_data=None, agitation_data=None, wandering_data=None, seizure_data=None, safety_data=None, environmental_objects=None):
         """
         Render comprehensive telemetry and diagnostic data onto video frame.
         """
@@ -50,9 +50,20 @@ class DebugVisualizer:
             diagnostics.extend(wandering_data["alerts"])
         if seizure_data and "alerts" in seizure_data: 
             diagnostics.extend(seizure_data["alerts"]) 
+        if safety_data and "alerts" in safety_data:
+            diagnostics.extend(safety_data["alerts"])
 
+        # 2. Draw Environmental Object Boxes (Sensor Fusion Visualizer)
+        if environmental_objects:
+            for obj in environmental_objects:
+                x1, y1, x2, y2 = map(int, obj['bbox'])
+                # Draw a distinct bounding box for medical gear
+                cv2.rectangle(frame, (x1, y1), (x2, y2), self.colors["yellow"], 2)
+                cv2.putText(frame, obj['name'].upper(), (x1, y1 - 10), 
+                            self.font, 0.5, self.colors["yellow"], 2)
+                
         # Base dimensions expanded to fit all modules
-        box_height = 400
+        box_height = 410
         box_width = 380
 
         # Expand box dynamically if alerts are triggered
