@@ -4,6 +4,7 @@ import argparse
 from ultralytics import YOLO
 from datetime import datetime
 from core import FallDetectorFSM, KinematicsEngine, GaitAnalyzer, ImmobilityTracker, AgitationDetector, WanderingDetector, SeizureDetector, SafetyMonitor
+from core.identification import PatientIdentifier
 from utils import DebugVisualizer
 
 def main():
@@ -63,11 +64,13 @@ def main():
 
     # Initialize the Safety Monitor (Configure based on your patient needs)
     safety = SafetyMonitor(requires_walker=True, on_oxygen=False, has_iv=False)
+    identifier = PatientIdentifier(required_frames=30)
 
     print("Pipeline initialized. Press 'q' to quit.")
 
     active_alerts_memory = set()
     target_track_id = None
+    detected_commodities = set()
 
     while cap.isOpened():
         success, frame = cap.read()
@@ -93,11 +96,14 @@ def main():
             for i in range(len(obj_boxes)):
                 if obj_confidences[i] > 0.5:
                     class_id = int(obj_classes[i])
-                    if class_id == 0:  # Class 0 is your custom walker
-                        environmental_objects.append({
-                            "name": "walker",
-                            "bbox": obj_boxes[i].tolist()
-                        })
+                    if class_id == 0: 
+                        name = "walker"
+                        environmental_objects.append({"name": name, "bbox": obj_boxes[i].tolist()})
+        
+                    # 2. ONLY LOG IF NOT ALREADY IN THE SET
+                        if name not in detected_commodities:
+                            print(f"\033[94m[COMMODITY DETECTED] {name.upper()} now in view.\033[0m")
+                            detected_commodities.add(name)
 
         patient_bbox = None
 
@@ -108,14 +114,24 @@ def main():
             all_confidences = results[0].keypoints.conf.cpu().numpy()
             all_bboxes = results[0].boxes.xyxy.cpu().numpy()
 
-            # Track a single target patient consistently
-            if target_track_id not in track_ids:
-                target_track_id = track_ids[0]
+            # Pass everything to the Matrix. It will return None for the first 30 frames.
+            target_track_id = identifier.update(frame, track_ids, all_bboxes, all_keypoints, frame_width)
 
-            target_idx = track_ids.index(target_track_id)
-            keypoints = all_keypoints[target_idx]
-            confidences = all_confidences[target_idx]
-            patient_bbox = all_bboxes[target_idx].tolist()
+            if target_track_id is None:
+                # Still initializing. Show a "CALIBRATING" message on the HUD and skip processing this frame.
+                cv2.putText(frame, "SYSTEM INITIALIZING (Scoring Matrix Active)...", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                cv2.imshow("Ambient Intelligence - Pipeline", frame)
+                cv2.waitKey(1)
+                continue # Skip the rest of the loop until we have a target
+
+            # Once we have a lock, extract their specific keypoints
+            if target_track_id in track_ids:
+                target_idx = track_ids.index(target_track_id)
+                keypoints = all_keypoints[target_idx]
+                confidences = all_confidences[target_idx]
+                patient_bbox = all_bboxes[target_idx].tolist()
+            else:
+                patient_bbox = None
 
             def get_pt(idx):
                 # Pulling the confidence threshold from the YAML file
@@ -252,6 +268,11 @@ def main():
             if current_state == "NO_RECOVERY":
                 alert = fsm.generate_alert_payload(frame_data)
                 frame = hud.draw_critical_alert(frame, alert)
+
+        # If no commodities are detected in this frame, clear the set
+        # so that the system is ready to log them again next time they appear.
+        if len(environmental_objects) == 0:
+            detected_commodities.clear()
 
         # Render the final output
         cv2.imshow("Ambient Intelligence - Pipeline", frame)
